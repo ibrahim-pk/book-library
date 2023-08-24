@@ -3,7 +3,7 @@ import { IBook } from "./bookInterface";
 
 const bookSchema = new mongoose.Schema<IBook>({
   title: { type: String, required: true },
-  author: { type: String },
+  author: { type: String, required: true },
   genre: { type: String, required: true },
   publishDate: { type: String, required: true },
   review: [{ type: String }],

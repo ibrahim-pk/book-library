@@ -1,6 +1,8 @@
 import express, { Request, Response } from "express";
 import bookModel from "./bookModel";
 import pick from "../../../share/pick";
+import { JwtPayload } from "jsonwebtoken";
+import { verifyToken } from "../../../helper/jwt";
 
 const bookRouter = express.Router();
 
@@ -45,17 +47,46 @@ bookRouter.get("/allbook", async (req: Request, res: Response) => {
   }
 });
 
+bookRouter.get("/my/allbook", async (req: Request, res: Response) => {
+  try {
+    //console.log(req?.query);
+    const token = req.query.token;
+    //console.log(token);
+    const verifyUser: JwtPayload | string | undefined = verifyToken(token);
+
+    const email = typeof verifyUser === "object" ? verifyUser.userEmail : "";
+
+    const myAllbook = await bookModel.find({ postBy: email });
+    if (myAllbook) {
+      res.status(200).send({
+        books: myAllbook,
+        msg: "Fetching all book",
+      });
+    } else {
+      res.status(200).send({
+        msg: "No Book Post",
+      });
+    }
+  } catch (err) {
+    console.log(err);
+  }
+});
+
 bookRouter.post("/addbook", async (req: Request, res: Response) => {
   try {
-    const { title, author, genre, publishDate, postBy } = req.body;
+    const { title, author, genre, publishDate, token } = req.body;
+    //console.log(req.body);
+    const verifyUser: JwtPayload | string | undefined = verifyToken(token);
+    //console.log(req.body);
+    const email = typeof verifyUser === "object" ? verifyUser.userEmail : "";
     const isTitle = await bookModel.findOne({ title: title });
     if (!isTitle) {
       const bookData = new bookModel({
         title: title,
-        autor: author,
+        author: author,
         genre: genre,
         publishDate: publishDate,
-        postBy: postBy,
+        postBy: email,
       });
 
       const saveData = await bookData.save();
@@ -73,10 +104,13 @@ bookRouter.post("/addbook", async (req: Request, res: Response) => {
   }
 });
 
-bookRouter.delete("/deletebook/:id", async (req: Request, res: Response) => {
+bookRouter.delete("/deletebook", async (req: Request, res: Response) => {
   try {
-    const { email } = req.body;
-    const bookId = req.params.id;
+    const { token, id } = req.body;
+    const verifyUser: JwtPayload | string | undefined = verifyToken(token);
+
+    const email = typeof verifyUser === "object" ? verifyUser.userEmail : "";
+    const bookId = id;
     const isUser = await bookModel.findOne({ postBy: email });
     if (isUser) {
       const deletebook = await bookModel.findByIdAndDelete({ _id: bookId });
@@ -95,14 +129,17 @@ bookRouter.delete("/deletebook/:id", async (req: Request, res: Response) => {
   }
 });
 
-bookRouter.patch("/updatebook/:id", async (req: Request, res: Response) => {
+bookRouter.patch("/updatebook", async (req: Request, res: Response) => {
   try {
-    const { email, data } = req.body;
-    const bookId = req.params.id;
+    console.log(req.body);
+    const { token, data } = req.body;
+    const verifyUser: JwtPayload | string | undefined = verifyToken(token);
+
+    const email = typeof verifyUser === "object" ? verifyUser.userEmail : "";
     const isUser = await bookModel.findOne({ postBy: email });
     if (isUser) {
       const updatebook = await bookModel.findByIdAndUpdate(
-        { _id: bookId },
+        { _id: data.bookId },
         data,
         { new: true }
       );
@@ -115,59 +152,6 @@ bookRouter.patch("/updatebook/:id", async (req: Request, res: Response) => {
         msg: "Invalid Publisher",
       });
     }
-  } catch (err) {
-    console.log(err.message);
-  }
-});
-
-bookRouter.get("/filter", async (req: Request, res: Response) => {
-  try {
-    const andCondition: { [key: string]: any }[] = [];
-    if (Object.keys(req.query).length) {
-      andCondition.push({
-        $and: Object.entries(req.query).map(([field, value]: any) => ({
-          //Object.entries giver array from object with key value pair
-          [field]: value,
-        })),
-      });
-    }
-
-    const whereCondition =
-      andCondition.length > 0 ? { $and: andCondition } : {};
-    const filterBook = await bookModel.find(whereCondition);
-
-    res.status(200).send({
-      book: filterBook,
-      msg: "filter Book",
-    });
-  } catch (err) {
-    console.log(err.message);
-  }
-});
-
-bookRouter.get("/search", async (req: Request, res: Response) => {
-  try {
-    const andCondition: { [key: string]: any }[] = [];
-    if (Object.keys(req.query).length) {
-      andCondition.push({
-        $or: Object.entries(req.query).map(([field, value]: any) => ({
-          //Object.entries giver array from object with key value pair
-          [field]: {
-            $regex: value,
-            $options: "i", //case insensetive
-          },
-        })),
-      });
-    }
-
-    const whereCondition =
-      andCondition.length > 0 ? { $and: andCondition } : {};
-    const filterBook = await bookModel.find(whereCondition);
-
-    res.status(200).send({
-      book: filterBook,
-      msg: "searching Book",
-    });
   } catch (err) {
     console.log(err.message);
   }
